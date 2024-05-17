@@ -1,117 +1,253 @@
 <?php
+session_start();
 
-class Usuario {
-    public $login;
-    public $senha;
+$usuarios = [
+    'admin' => 'admin'
+];
 
-    public function __construct($login, $senha) {
-        $this->login = $login;
-        $this->senha = $senha;
-    }
+$caixa_inicial = (float)trim(fgets(STDIN));
+$quantidade_vendida = (int)trim(fgets(STDIN));
+$dinheiro_recebido = (float)trim(fgets(STDIN));
+$preco_item = (float)trim(fgets(STDIN));
+$estoque_item = (int)trim(fgets(STDIN));
+
+$log = [];
+$total_vendas = 0;
+$caixa_inicial =  0;
+$itens = [];
+
+function limpar_tela() {
+    system('clear');
 }
 
-class Caixa {
-    private $usuarios = [];
-    private $usuarioLogado = null;
-    private $log = [];
-    private $totalVendas = 0;
+function hora_atual() {
+    return date('d/m/Y H:i:s');
+}
 
-    public function adicionarUsuario($login, $senha) {
-        $usuario = new Usuario($login, $senha);
-        $this->usuarios[] = $usuario;
-    }
+function registrar_acao($mensagem) {
+    global $log;
+    $log[] = $mensagem;
+    file_put_contents('log.txt', "$mensagem\n", FILE_APPEND);
+}
 
-    public function logar($login, $senha) {
-        foreach ($this->usuarios as $usuario) {
-            if ($usuario->login === $login && $usuario->senha === $senha) {
-                $this->usuarioLogado = $usuario;
-                $this->log[] = "Usuário {$usuario->login} logou às " . date('d/m/Y H:i:s');
-                return true;
-            }
-        }
+function login() {
+    global $usuarios;
+    limpar_tela();
+    echo "Login\n";
+    echo "Nome de usuário: ";
+    $nome_usuario = trim(fgets(STDIN));
+    echo "Senha: ";
+    $senha = trim(fgets(STDIN));
+    
+    if (isset($usuarios[$nome_usuario]) && $usuarios[$nome_usuario] == $senha) {
+        $_SESSION['nome_usuario'] = $nome_usuario;
+        registrar_acao("Usuário $nome_usuario fez login em " . hora_atual());
+        return true;
+    } else {
+        echo "Credenciais inválidas.\n";
         return false;
     }
+}
 
-    public function deslogar() {
-        if ($this->usuarioLogado) {
-            $this->log[] = "Usuário {$this->usuarioLogado->login} deslogou às " . date('d/m/Y H:i:s');
-            $this->usuarioLogado = null;
-        }
+function logout() {
+    global $log;
+    $nome_usuario = $_SESSION['nome_usuario'];
+    registrar_acao("Usuário $nome_usuario fez logout em " . hora_atual());
+    session_destroy();
+}
+
+function registrar_usuario() {
+    global $usuarios;
+    limpar_tela();
+    echo "Registrar Novo Usuário\n";
+    echo "Nome de usuário: ";
+    $nome_usuario = trim(fgets(STDIN));
+    echo "Senha: ";
+    $senha = trim(fgets(STDIN));
+    $usuarios[$nome_usuario] = $senha;
+    registrar_acao("Usuário $nome_usuario registrado em " . hora_atual());
+    echo "Usuário $nome_usuario registrado com sucesso.\n";
+}
+
+function inicializar_caixa() {
+    global $caixa_inicial;
+    limpar_tela();
+    echo "Inicializar Caixa\n";
+    echo "Valor inicial no caixa: ";
+    $caixa_inicial = trim(fgets(STDIN));
+    registrar_acao("Caixa inicializado com R$$caixa_inicial em " . hora_atual());
+}
+
+function realizar_venda() {
+    global $total_vendas, $caixa_inicial, $itens;
+    limpar_tela();
+    echo "Realizar Venda\n";
+    echo "ID do Item: ";
+    $id_item = trim(fgets(STDIN));
+
+    if (!isset($itens[$id_item])) {
+        echo "Item não encontrado.\n";
+        return;
     }
 
-    public function vender($valor, $item) {
-        if ($this->usuarioLogado) {
-            $this->log[] = "Usuário {$this->usuarioLogado->login} realizou uma venda do item {$item} no valor de {$valor} às " . date('d/m/Y H:i:s');
-            $this->totalVendas += $valor;
-            echo "Venda registrada!\n";
-        }
+    $item = $itens[$id_item];
+    echo "Quantidade vendida: ";
+    $quantidade_vendida = trim(fgets(STDIN));
+
+    if ($item['estoque'] < $quantidade_vendida) {
+        echo "Estoque insuficiente.\n";
+        return;
     }
 
-    public function verHistorico() {
-        return $this->log;
+    $total_venda = $item['preco'] * $quantidade_vendida;
+    echo "Valor total da venda: R$$total_venda\n";
+    echo "Dinheiro recebido: ";
+    $dinheiro_recebido = trim(fgets(STDIN));
+
+    if ($dinheiro_recebido < $total_venda) {
+        echo "Dinheiro insuficiente.\n";
+        return;
     }
 
-    public function mostrarMenu() {
-        if ($this->usuarioLogado) {
-            system('clear');
-            echo "Menu:\n";
-            echo "1. Vender\n";
-            echo "2. Cadastrar novo usuário\n";
-            echo "3. Verificar log\n";
-            echo "4. Deslogar\n";
-            echo "Usuário logado: {$this->usuarioLogado->login}\n";
-            echo "Total de vendas: {$this->totalVendas}\n";
-        } else {
-            echo "Menu:\n";
-            echo "1. Realizar login\n";
-        }
+    $troco = $dinheiro_recebido - $total_venda;
+    $itens[$id_item]['estoque'] -= $quantidade_vendida;
+    $total_vendas += $total_venda;
+    $caixa_inicial += $total_venda;
+    registrar_acao("Usuário {$_SESSION['nome_usuario']} vendeu $quantidade_vendida x {$item['nome']} por R$$total_venda em " . hora_atual());
+    echo "Venda registrada. Troco: R$$troco\n";
+}
+
+function visualizar_log() {
+    global $log;
+    limpar_tela();
+    echo "Log do Sistema\n";
+    foreach ($log as $entrada) {
+        echo "$entrada\n";
+    }
+    echo "\nPressione Enter para continuar...";
+    fgets(STDIN);
+}
+
+function adicionar_item() {
+    global $itens;
+    limpar_tela();
+    echo "Adicionar Item\n";
+    echo "ID do Item: ";
+    $id_item = trim(fgets(STDIN));
+    echo "Nome do Item: ";
+    $nome_item = trim(fgets(STDIN));
+    echo "Preço do Item: ";
+    $preco_item = trim(fgets(STDIN));
+    echo "Quantidade em Estoque: ";
+    $estoque_item = trim(fgets(STDIN));
+
+    $itens[$id_item] = [
+        'nome' => $nome_item,
+        'preco' => $preco_item,
+        'estoque' => $estoque_item
+    ];
+    registrar_acao("Item $nome_item adicionado com ID $id_item em " . hora_atual());
+    echo "Item $nome_item adicionado com sucesso.\n";
+}
+
+function alterar_item() {
+    global $itens;
+    limpar_tela();
+    echo "Alterar Item\n";
+    echo "ID do Item: ";
+    $id_item = trim(fgets(STDIN));
+
+    if (!isset($itens[$id_item])) {
+        echo "Item não encontrado.\n";
+        return;
+    }
+
+    $item = $itens[$id_item];
+    echo "Nome do Item (atual: {$item['nome']}): ";
+    $nome_item = trim(fgets(STDIN));
+    echo "Preço do Item (atual: {$item['preco']}): ";
+    $preco_item = trim(fgets(STDIN));
+    echo "Quantidade em Estoque (atual: {$item['estoque']}): ";
+    $estoque_item = trim(fgets(STDIN));
+
+    $itens[$id_item] = [
+        'nome' => $nome_item ?: $item['nome'],
+        'preco' => $preco_item ?: $item['preco'],
+        'estoque' => $estoque_item ?: $item['estoque']
+    ];
+    registrar_acao("Item $id_item alterado por usuário {$_SESSION['nome_usuario']} em " . hora_atual());
+    echo "Item alterado com sucesso.\n";
+}
+
+function deletar_item() {
+    global $itens;
+    limpar_tela();
+    echo "Deletar Item\n";
+    echo "ID do Item: ";
+    $id_item = trim(fgets(STDIN));
+
+    if (!isset($itens[$id_item])) {
+        echo "Item não encontrado.\n";
+        return;
+    }
+
+    unset($itens[$id_item]);
+    registrar_acao("Item $id_item deletado por usuário {$_SESSION['nome_usuario']} em " . hora_atual());
+    echo "Item deletado com sucesso.\n";
+}
+
+function menu_principal() {
+    global $total_vendas, $caixa_inicial;   
+    limpar_tela();
+    echo "Bem-vindo, {$_SESSION['nome_usuario']}\n";
+    echo "Total de Vendas: R$$total_vendas\n";
+    echo "Caixa Atual: R$$caixa_inicial\n";
+    echo "1. Realizar Venda\n";
+    echo "2. Registrar Novo Usuário\n";
+    echo "3. Visualizar Log\n";
+    echo "4. Adicionar Item\n";
+    echo "5. Alterar Item\n";
+    echo "6. Deletar Item\n";
+    echo "7. Logout\n";
+    echo "Escolha uma opção: ";
+    $opcao = trim(fgets(STDIN));
+    
+    switch ($opcao) {
+        case 1:
+            realizar_venda();
+            break;
+        case 2:
+            registrar_usuario();
+            break;
+        case 3:
+            visualizar_log();
+            break;
+        case 4:
+            adicionar_item();
+            break;
+        case 5:
+            alterar_item();
+            break;
+        case 6:
+            deletar_item();
+            break;
+        case 7:
+            logout();
+            exit;
+        default:
+            echo "Opção inválida.\n";
     }
 }
 
-$caixa = new Caixa();
-$caixa->adicionarUsuario('admin', 'admin');
-$caixa->adicionarUsuario('user', 'user');
-
 while (true) {
-    $caixa->mostrarMenu();
-    $opcao = readline("Digite a opção desejada: ");
-
-    if ($caixa->usuarioLogado) {
-        switch ($opcao) {
-            case 1:
-                $valor = (float) readline("Digite o valor da venda: ");
-                $item = readline("Digite o nome do item: ");
-                $caixa->vender($valor, $item);
-                break;
-            case 2:
-                $login = readline("Digite o novo login: ");
-                $senha = readline("Digite a nova senha: ");
-                $caixa->adicionarUsuario($login, $senha);
-                break;
-            case 3:
-                $historico = $caixa->verHistorico();
-                foreach ($historico as $evento) {
-                    echo $evento . "\n";
-                }
-                break;
-            case 4:
-                $caixa->deslogar();
-                break;
-            default:
-                echo "Opção inválida\n";
+    if (!isset($_SESSION['nome_usuario'])) {
+        if (login()) {
+            inicializar_caixa();
+        } else {
+            echo "Falha no login. Tente novamente.\n";
         }
     } else {
-        if ($opcao == 1) {
-            $login = readline("Digite o login: ");
-            $senha = readline("Digite a senha: ");
-            if ($caixa->logar($login, $senha)) {
-                echo "Login realizado com sucesso!\n";
-            } else {
-                echo "Usuário ou senha inválidos\n";
-            }
-        } else {
-            echo "Opção inválida\n";
-        }
+        menu_principal();
     }
 }
 ?>
