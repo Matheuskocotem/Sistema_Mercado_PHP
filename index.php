@@ -53,7 +53,7 @@ function logout() {
     global $log;
     $nome_usuario = $_SESSION['nome_usuario'];
     registrar_acao("Usuário $nome_usuario fez logout em " . hora_atual());
-    session_destroy();
+    session_unset();
 }
 
 function registrar_usuario() {
@@ -110,11 +110,13 @@ function realizar_venda() {
     }
 
     $troco = $dinheiro_recebido - $total_venda;
+    echo "Venda registrada. Troco: R$$troco\n";
+    sleep(3);
     $itens[$id_item]['estoque'] -= $quantidade_vendida;
     $total_vendas += $total_venda;
     $caixa_inicial += $total_venda;
-    registrar_acao("Usuário {$_SESSION['nome_usuario']} vendeu $quantidade_vendida x {$item['nome']} por R$$total_venda em " . hora_atual());
-    echo "Venda registrada. Troco: R$$troco\n";
+    registrar_acao("Usuário {$_SESSION['nome_usuario']} vendeu $quantidade_vendida x {$item['nome']} por R$$total_venda e R$$troco de troco em " . hora_atual());
+
 }
 
 function visualizar_log() {
@@ -233,16 +235,16 @@ function menu_principal() {
             break;
         case 7:
             logout();
-            exit;
+            break;
         default:
             echo "Opção inválida.\n";
     }
 }
 
+
 while (true) {
     if (!isset($_SESSION['nome_usuario'])) {
         if (login()) {
-            inicializar_caixa();
         } else {
             echo "Falha no login. Tente novamente.\n";
         }
